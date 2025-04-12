@@ -1,0 +1,76 @@
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+
+const app = express();
+const PORT = 3000;
+const SECRET_KEY = 'mysecretkey';
+
+app.use(bodyParser.json());
+
+
+mongoose.connect('mongodb://localhost:27017/jwt', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log("MongoDB connected"))
+  .catch(err => console.error("MongoDB connection error:", err));
+
+
+const userSchema = new mongoose.Schema({
+  username: String,
+  password: String 
+});
+
+const User = mongoose.model('User', userSchema);
+
+
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body;
+
+  const existingUser = await User.findOne({ username });
+  if (existingUser) return res.status(400).json({ message: 'User already exists' });
+
+  const newUser = new User({ username, password });
+  await newUser.save();
+
+  res.json({ message: 'User registered successfully' });
+});
+
+
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  const user = await User.findOne({ username, password });
+  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+  const token = jwt.sign({ id: user._id, username: user.username }, SECRET_KEY, {
+    expiresIn: '1h'
+  });
+
+  res.json({ token });
+});
+
+
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, SECRET_KEY, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+}
+
+
+app.get('/delete', authenticateToken, (req, res) => {
+  res.json({ message: `Hello ${req.user.username}, you accessed protected data.` });
+});
+
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
