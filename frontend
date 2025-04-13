@@ -1,0 +1,105 @@
+import { useState } from 'react';
+
+function App() {
+  const [form, setForm] = useState({ username: '', password: '' });
+  const [isLogin, setIsLogin] = useState(true);
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [msg, setMsg] = useState('');
+  const [protectedMsg, setProtectedMsg] = useState('');
+
+  const handleInput = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setMsg('');
+    const endpoint = isLogin ? 'login' : 'register';
+
+    try {
+      const res = await fetch(`http://localhost:3000/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      if (isLogin) {
+        setToken(data.token);
+        localStorage.setItem('token', data.token);
+        setMsg('Login successful!');
+      } else {
+        setMsg('Registration successful!');
+      }
+    } catch (err) {
+      setMsg(err.message || 'Something went wrong');
+    }
+  };
+
+  const fetchProtected = async () => {
+    try {
+      const res = await fetch('http://localhost:3000/delete', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setProtectedMsg(data.message);
+    } catch (err) {
+      setProtectedMsg(err.message || 'Access denied');
+    }
+  };
+
+  const logout = () => {
+    setToken('');
+    localStorage.removeItem('token');
+    setMsg('');
+    setProtectedMsg('');
+  };
+
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
+      <h1>JWT Auth (No Axios)</h1>
+
+      <form onSubmit={handleAuth} style={{ marginBottom: '1rem' }}>
+        <input
+          name="username"
+          placeholder="Username"
+          onChange={handleInput}
+          style={{ marginRight: '0.5rem' }}
+        />
+        <input
+          name="password"
+          type="password"
+          placeholder="Password"
+          onChange={handleInput}
+          style={{ marginRight: '0.5rem' }}
+        />
+        <button type="submit">{isLogin ? 'Login' : 'Register'}</button>
+      </form>
+
+      <button onClick={() => setIsLogin(!isLogin)} style={{ marginBottom: '1rem' }}>
+        {isLogin ? 'Switch to Register' : 'Switch to Login'}
+      </button>
+
+      {msg && <p>{msg}</p>}
+
+      {token && (
+        <div>
+          <button onClick={fetchProtected} style={{ marginRight: '0.5rem' }}>
+            Access Protected Route
+          </button>
+          <button onClick={logout}>Logout</button>
+          <p>{protectedMsg}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
